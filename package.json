@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test src/crypto.test.ts"
+    "test": "node --test src/crypto.test.ts src/format.test.ts"
   },
   "keywords": [],
   "author": "",

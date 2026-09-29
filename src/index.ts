@@ -3,8 +3,8 @@
  * lets an integration read your form's responses.
  *
  * SealForm sends it ciphertext; it decrypts here, inside your Cloudflare
- * account, and forwards readable JSON to your WEBHOOK_URL (Zapier, Make, Slack,
- * your own API...). SealForm never sees the plaintext or where it goes.
+ * account, and forwards the answers to your WEBHOOK_URL: plain JSON for Zapier,
+ * Make, n8n or your API; a chat message for Slack, Discord and Google Chat. SealForm never sees the plaintext or where it goes.
  *
  * Nothing to copy from SealForm: on first start the relay makes its own key
  * pair and keeps the private key in a Durable Object in your account. When you
@@ -22,6 +22,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import { ed25519, x25519 } from '@noble/curves/ed25519.js'
 import { decryptSubmission, fromB64, publicKeyFor, toB64 } from './crypto'
+import { bodyFor, targetFor, type Readable } from './format'
 
 export interface Env {
   KEYS: DurableObjectNamespace<RelayKeys>
@@ -103,6 +104,7 @@ export default {
         ok: true,
         public_key: toB64(publicKeyFor(await relaySecretKey(env))),
         webhook_configured: Boolean(env.WEBHOOK_URL),
+        webhook_kind: env.WEBHOOK_URL ? targetFor(env.WEBHOOK_URL) : null,
       })
     }
 
@@ -151,7 +153,7 @@ export default {
       return json({ error: 'could not decrypt; this relay may not be connected to that form' }, 422)
     }
 
-    const out = {
+    const out: Readable = {
       source: 'sealform',
       form: { id: delivery.form.id, title: delivery.form.title },
       submission_id: delivery.submission.id,
@@ -161,7 +163,7 @@ export default {
     const init = {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'user-agent': 'sealform-relay/1' },
-      body: JSON.stringify(out),
+      body: JSON.stringify(bodyFor(targetFor(env.WEBHOOK_URL), out)),
     }
     const res = env.WEBHOOK_SERVICE ? await env.WEBHOOK_SERVICE.fetch(env.WEBHOOK_URL, init) : await fetch(env.WEBHOOK_URL, init)
     // Only the status goes back to SealForm, never the plaintext.

@@ -2,7 +2,7 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/annangiv/sealform-relay)
 
-A tiny Cloudflare Worker that **you** run to send [SealForm](https://sealform.co) responses to Zapier, Make, Slack or your own API, without SealForm ever being able to read them.
+A tiny Cloudflare Worker that **you** run to send [SealForm](https://sealform.co) responses to Zapier, Make, n8n, Slack, Discord, Google Chat or your own API, without SealForm ever being able to read them. It runs on Cloudflare's free plan.
 
 ## How it works
 
@@ -22,6 +22,8 @@ respondent's browser ──(encrypted)──▶ SealForm ──(still encrypted,
 2. Sign in to Cloudflare (a free account is enough). When asked for **`WEBHOOK_URL`**, paste where responses should go, e.g. a Zapier "Catch Hook" or Slack incoming-webhook URL. Leave the other settings as they are, then deploy.
 3. Copy the Worker's address (`https://sealform-relay.<you>.workers.dev`), paste it into SealForm, and click **Connect**.
 
+If Cloudflare shows **No URLs enabled**, open the Worker → **Settings → Domains & Routes** and turn on `workers.dev`.
+
 That's it: no keys to copy. To send a form somewhere else, change `WEBHOOK_URL` in Cloudflare, or deploy another relay.
 
 Command line instead:
@@ -40,6 +42,10 @@ npx wrangler secret put WEBHOOK_URL
 **Your webhook is another Worker in the same account?** Cloudflare doesn't let one `workers.dev` Worker call another by URL. Add a service binding named `WEBHOOK_SERVICE` to that Worker, and the relay will deliver through it.
 
 ## What your webhook receives
+
+**Slack** (`hooks.slack.com/services/…`), **Discord** (`discord.com/api/webhooks/…`) and **Google Chat** (`chat.googleapis.com/…`) webhooks get a chat message listing each question and answer. Long responses are cut to the chat's size limit.
+
+Everything else (Zapier, Make, n8n, your API) gets this JSON:
 
 ```json
 {
