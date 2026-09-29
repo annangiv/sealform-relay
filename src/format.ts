@@ -1,7 +1,8 @@
 /**
- * Shapes the readable response for the webhook it's going to. Slack, Discord
- * and Google Chat only accept their own message format; everything else
- * (Zapier, Make, n8n, your API) gets flat JSON: { fields: { question: answer } }.
+ * Shapes the readable response for the webhook it's going to. Slack, Discord,
+ * Google Chat and Microsoft Teams only accept their own message format;
+ * everything else (Zapier, Make, n8n, your API) gets flat JSON:
+ * { fields: { question: answer } }. WEBHOOK_FORMAT overrides the guess.
  */
 export type Readable = {
   source: 'sealform'
@@ -11,9 +12,14 @@ export type Readable = {
   answers: { id: string; question: string; type: string; answer: unknown }[]
 }
 
-export type Target = 'slack' | 'discord' | 'google_chat' | 'json'
+export type Target = 'slack' | 'discord' | 'google_chat' | 'teams' | 'json'
 
-export function targetFor(webhookUrl: string): Target {
+const TARGETS: Target[] = ['slack', 'discord', 'google_chat', 'teams', 'json']
+
+/** The format to send: WEBHOOK_FORMAT if it names one, else a guess from the URL. */
+export function targetFor(webhookUrl: string, override?: string): Target {
+  const forced = override?.trim().toLowerCase() as Target | undefined
+  if (forced && TARGETS.includes(forced)) return forced
   let host = ''
   let path = ''
   try {
@@ -26,6 +32,12 @@ export function targetFor(webhookUrl: string): Target {
   if (host === 'hooks.slack.com' && path.startsWith('/services/')) return 'slack'
   if (/^(ptb\.|canary\.)?discord(app)?\.com$/.test(host) && path.startsWith('/api/webhooks/')) return 'discord'
   if (host === 'chat.googleapis.com') return 'google_chat'
+  // Teams: the old Office 365 connector hooks, and Teams "Workflows" webhooks,
+  // which are Power Automate flows.
+  if (host.endsWith('.webhook.office.com')) return 'teams'
+  if ((host.endsWith('.logic.azure.com') || host.endsWith('.api.powerplatform.com')) && path.includes('/workflows/')) {
+    return 'teams'
+  }
   return 'json'
 }
 
@@ -87,13 +99,32 @@ export function bodyFor(target: Target, r: Readable): unknown {
       }
     case 'google_chat':
       return { text: lines(r, (s) => `*${s.replace(/\*/g, '')}*`, 4000) }
+    case 'teams':
+      // Teams shows the Adaptive Card and ignores the rest. The plain fields ride
+      // along, because Power Automate flows on the same host may want JSON.
+      return { type: 'message', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', contentUrl: null, content: teamsCard(r) }], ...plainJson(r) }
     default:
-      return {
-        source: r.source,
-        form: r.form,
-        submission_id: r.submission_id,
-        submitted_at: r.submitted_at,
-        fields: fieldsOf(r),
-      }
+      return plainJson(r)
   }
+}
+
+function plainJson(r: Readable) {
+  return {
+    source: r.source,
+    form: r.form,
+    submission_id: r.submission_id,
+    submitted_at: r.submitted_at,
+    fields: fieldsOf(r),
+  }
+}
+
+/** Teams caps a message at ~28 KB, so answers are clipped and long forms cut off. */
+function teamsCard(r: Readable) {
+  const facts = r.answers.slice(0, 40).map((a) => ({ title: clip(a.question, 100), value: clip(answerText(a.answer), 1000) }))
+  const body: unknown[] = [
+    { type: 'TextBlock', text: `New response: ${r.form.title}`, weight: 'Bolder', size: 'Medium', wrap: true },
+    { type: 'FactSet', facts },
+  ]
+  if (r.answers.length > facts.length) body.push({ type: 'TextBlock', text: '…more answers in SealForm', isSubtle: true, wrap: true })
+  return { $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4', body }
 }

@@ -61,3 +61,23 @@ test('webhooks get flat fields keyed by question', () => {
     'Full name (2)': 'Sam',
   })
 })
+
+test('teams: office hooks and Teams workflows get an Adaptive Card, plus the plain fields', () => {
+  assert.equal(targetFor('https://contoso.webhook.office.com/webhookb2/abc'), 'teams')
+  assert.equal(targetFor('https://prod-12.westus.logic.azure.com:443/workflows/abc/triggers/manual/paths/invoke?sig=x'), 'teams')
+  assert.equal(targetFor('https://default1.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/abc/triggers/manual'), 'teams')
+  assert.equal(targetFor('https://example.logic.azure.com/other'), 'json')
+  const t = bodyFor('teams', r) as Record<string, any>
+  assert.equal(t.type, 'message')
+  const card = t.attachments[0].content
+  assert.equal(t.attachments[0].contentType, 'application/vnd.microsoft.card.adaptive')
+  assert.equal(card.type, 'AdaptiveCard')
+  assert.deepEqual(card.body[1].facts[1], { title: 'Symptoms', value: 'Cough, Fever' })
+  assert.equal(t.fields['Full name'], 'Robin', 'plain fields ride along for Power Automate')
+})
+
+test('WEBHOOK_FORMAT overrides the guess', () => {
+  assert.equal(targetFor('https://prod-1.westus.logic.azure.com/workflows/x', 'json'), 'json')
+  assert.equal(targetFor('https://example.com/hook', 'teams'), 'teams')
+  assert.equal(targetFor('https://hooks.slack.com/services/x', 'nonsense'), 'slack')
+})

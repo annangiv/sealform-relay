@@ -43,7 +43,9 @@ npx wrangler secret put WEBHOOK_URL
 
 ## What your webhook receives
 
-**Slack** (`hooks.slack.com/services/…`), **Discord** (`discord.com/api/webhooks/…`) and **Google Chat** (`chat.googleapis.com/…`) webhooks get a chat message listing each question and answer. Long responses are cut to the chat's size limit.
+**Slack** (`hooks.slack.com/services/…`), **Discord** (`discord.com/api/webhooks/…`), **Google Chat** (`chat.googleapis.com/…`) and **Microsoft Teams** (Teams Workflows webhooks, or older `*.webhook.office.com` connectors) get a chat message listing each question and answer. Long responses are cut to the chat's size limit. Teams messages also carry the plain `fields` below, for Power Automate flows on the same address.
+
+If the format is guessed wrong, set the variable `WEBHOOK_FORMAT` to `slack`, `discord`, `google_chat`, `teams` or `json`.
 
 Everything else (Zapier, Make, n8n, your API) gets this JSON:
 

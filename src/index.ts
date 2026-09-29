@@ -16,6 +16,8 @@
  *   SEALFORM_PUBLIC_KEY  (var, optional) pin SealForm's delivery key instead of
  *                        fetching it; needed when SealForm isn't reachable
  *                        from Cloudflare, e.g. local development
+ *   WEBHOOK_FORMAT       (var, optional) slack | discord | google_chat | teams | json,
+ *                        when the guess from WEBHOOK_URL is wrong
  *   WEBHOOK_SERVICE      (optional service binding) deliver to another Worker in
  *                        your account; workers.dev Workers can't fetch each other by URL
  */
@@ -30,6 +32,8 @@ export interface Env {
   SEALFORM_ORIGIN?: string
   SEALFORM_PUBLIC_KEY?: string
   WEBHOOK_SERVICE?: Fetcher
+  /** Optional: slack, discord, google_chat, teams or json. Otherwise guessed from WEBHOOK_URL. */
+  WEBHOOK_FORMAT?: string
 }
 
 /**
@@ -104,7 +108,7 @@ export default {
         ok: true,
         public_key: toB64(publicKeyFor(await relaySecretKey(env))),
         webhook_configured: Boolean(env.WEBHOOK_URL),
-        webhook_kind: env.WEBHOOK_URL ? targetFor(env.WEBHOOK_URL) : null,
+        webhook_kind: env.WEBHOOK_URL ? targetFor(env.WEBHOOK_URL, env.WEBHOOK_FORMAT) : null,
       })
     }
 
@@ -163,7 +167,7 @@ export default {
     const init = {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'user-agent': 'sealform-relay/1' },
-      body: JSON.stringify(bodyFor(targetFor(env.WEBHOOK_URL), out)),
+      body: JSON.stringify(bodyFor(targetFor(env.WEBHOOK_URL, env.WEBHOOK_FORMAT), out)),
     }
     const res = env.WEBHOOK_SERVICE ? await env.WEBHOOK_SERVICE.fetch(env.WEBHOOK_URL, init) : await fetch(env.WEBHOOK_URL, init)
     // Only the status goes back to SealForm, never the plaintext.
