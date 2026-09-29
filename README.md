@@ -53,14 +53,17 @@ Everything else (Zapier, Make, n8n, your API) gets this JSON:
   "form": { "id": "…", "title": "Patient intake" },
   "submission_id": "…",
   "submitted_at": "2026-09-28T19:30:00.000Z",
-  "answers": [
-    { "id": "f_name", "question": "Full name", "type": "short_text", "answer": "Robin" },
-    { "id": "f_card", "question": "Insurance card", "type": "file", "answer": [{ "name": "card.jpg", "type": "image/jpeg", "size": 184000 }] }
-  ]
+  "fields": {
+    "Full name": "Robin",
+    "Symptoms": ["Cough", "Fever"],
+    "Insurance card": ["card.jpg"]
+  }
 }
 ```
 
-File contents aren't forwarded, only their names, types and sizes. Download files from SealForm.
+Each question is a key, so in Zapier, Make or n8n you map **fields → Full name** directly, and it keeps working if you reorder the form. A repeated question gets a suffix: `Name`, `Name (2)`. Checkboxes come as lists, and files as their names.
+
+File contents aren't forwarded, only their names. Download files from SealForm.
 
 ## Security notes
 

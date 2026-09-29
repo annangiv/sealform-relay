@@ -1,7 +1,7 @@
 /**
  * Shapes the readable response for the webhook it's going to. Slack, Discord
  * and Google Chat only accept their own message format; everything else
- * (Zapier, Make, n8n, your API) gets the plain JSON.
+ * (Zapier, Make, n8n, your API) gets flat JSON: { fields: { question: answer } }.
  */
 export type Readable = {
   source: 'sealform'
@@ -40,6 +40,24 @@ export function answerText(answer: unknown): string {
   return String(answer)
 }
 
+/** Answer value for JSON: files by name, everything else as answered. */
+function jsonAnswer(answer: unknown): unknown {
+  if (Array.isArray(answer)) return answer.map((x) => (x && typeof x === 'object' && 'name' in x ? String(x.name) : x))
+  return answer ?? null
+}
+
+/** { question: answer }, so automations map by question, not position. Repeated questions get " (2)". */
+export function fieldsOf(r: Readable): Record<string, unknown> {
+  const fields: Record<string, unknown> = {}
+  for (const a of r.answers) {
+    const base = a.question.trim() || a.id
+    let key = base
+    for (let n = 2; key in fields; n++) key = `${base} (${n})`
+    fields[key] = jsonAnswer(a.answer)
+  }
+  return fields
+}
+
 const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
 
 /** Plain-text lines shared by the chat formats: "*Question*\nanswer". */
@@ -70,6 +88,12 @@ export function bodyFor(target: Target, r: Readable): unknown {
     case 'google_chat':
       return { text: lines(r, (s) => `*${s.replace(/\*/g, '')}*`, 4000) }
     default:
-      return r
+      return {
+        source: r.source,
+        form: r.form,
+        submission_id: r.submission_id,
+        submitted_at: r.submitted_at,
+        fields: fieldsOf(r),
+      }
   }
 }

@@ -40,7 +40,6 @@ test('slack and discord get their own message shape', () => {
   const discord = bodyFor('discord', r) as { content: string; allowed_mentions: unknown }
   assert.match(discord.content, /\*\*Full name\*\*\nRobin/)
   assert.deepEqual(discord.allowed_mentions, { parse: [] })
-  assert.equal(bodyFor('json', r), r)
 })
 
 test('long responses are cut to the chat limit', () => {
@@ -48,4 +47,17 @@ test('long responses are cut to the chat limit', () => {
   const d = bodyFor('discord', big) as { content: string }
   assert.ok(d.content.length <= 2000)
   assert.match(d.content, /more answers in SealForm/)
+})
+
+test('webhooks get flat fields keyed by question', () => {
+  const dup = { ...r, answers: [...r.answers, { id: 'e', question: 'Full name', type: 'short_text', answer: 'Sam' }] }
+  const j = bodyFor('json', dup) as Record<string, unknown>
+  assert.deepEqual(Object.keys(j), ['source', 'form', 'submission_id', 'submitted_at', 'fields'])
+  assert.deepEqual(j.fields, {
+    'Full name': 'Robin',
+    Symptoms: ['Cough', 'Fever'],
+    Card: ['card.jpg'],
+    Notes: null,
+    'Full name (2)': 'Sam',
+  })
 })
